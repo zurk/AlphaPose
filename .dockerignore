@@ -1,0 +1,14 @@
+.git
+*.DS_Store
+.env
+venv
+.idea
+.vscode
+__pycache__
+data*/
+output[s]
+debug
+build
+.ipynb_checkpoints
+*.egg-info
+*.so
