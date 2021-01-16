@@ -119,8 +119,8 @@ class CustomDataset(data.Dataset):
                 img = self.motion_blur(img)
         
         # transform ground truth into training label and apply data augmentation
-        img, label, label_mask, bbox = self.transformation(img, label, source)
-        return img, label, label_mask, img_id, bbox
+        img, label, label_mask, joint_radius, bbox = self.transformation(img, label, source)
+        return img, label, label_mask, joint_radius, img_id, bbox
 
     def __len__(self):
         return len(self._items)

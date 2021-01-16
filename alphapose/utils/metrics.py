@@ -35,6 +35,8 @@ class DataLogger(object):
     def _cal_avg(self):
         self.avg = self.sum / self.cnt
 
+    def __repr__(self):
+        return f"DataLogger({self.avg:.05f})"
 
 def calc_iou(pred, target):
     """Calculate mask iou"""

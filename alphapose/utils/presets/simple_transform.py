@@ -216,9 +216,11 @@ class SimpleTransform(object):
                 center, scale = c_half_body, s_half_body
 
         # rescale
+        scale_factor = 1.0
         if self._train:
             sf = self._scale_factor
-            scale = scale * np.clip(np.random.randn() * sf + 1, 1 - sf, 1 + sf)
+            scale_factor = np.clip(np.random.randn() * sf + 1, 1 - sf, 1 + sf)
+            scale = scale * scale_factor
         else:
             scale = scale * 1.0
 
@@ -258,13 +260,15 @@ class SimpleTransform(object):
             target, target_weight = self._integral_target_generator(joints, self.num_joints, inp_h, inp_w, source)
 
         bbox = _center_scale_to_box(center, scale)
+        joint_radius = label['radius']
+        joint_radius[joint_radius != -1] *= scale_factor
 
         img = im_to_torch(img)
         img[0].add_(-0.406)
         img[1].add_(-0.457)
         img[2].add_(-0.480)
 
-        return img, torch.from_numpy(target), torch.from_numpy(target_weight), torch.Tensor(bbox)
+        return img, torch.from_numpy(target), torch.from_numpy(target_weight), torch.from_numpy(joint_radius), torch.Tensor(bbox)
 
     def half_body_transform(self, joints, joints_vis):
         upper_joints = []

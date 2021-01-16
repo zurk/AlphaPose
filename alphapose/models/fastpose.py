@@ -2,7 +2,7 @@
 # Copyright (c) Shanghai Jiao Tong University. All rights reserved.
 # Written by Jiefeng Li (jeff.lee.sjtu@gmail.com)
 # -----------------------------------------------------
-
+import torch
 import torch.nn as nn
 
 from .builder import SPPE
@@ -47,6 +47,11 @@ class FastPose(nn.Module):
             self.duc2 = DUC(256, 512, upscale_factor=2, norm_layer=norm_layer)
         self.conv_out = nn.Conv2d(
             self.conv_dim, self._preset_cfg['NUM_JOINTS'], kernel_size=3, stride=1, padding=1)
+        self.conv_out_radius = nn.Conv2d(
+            self.conv_dim, self._preset_cfg['NUM_JOINTS'], kernel_size=3, stride=1, padding=1)
+
+        inputSize = self._preset_cfg['HEATMAP_SIZE'][0] * self._preset_cfg['HEATMAP_SIZE'][1] * self._preset_cfg['NUM_JOINTS']
+        self.linear_radius = nn.Linear(inputSize, self._preset_cfg['NUM_JOINTS'])
 
     def forward(self, x):
         out = self.preact(x)
@@ -54,8 +59,16 @@ class FastPose(nn.Module):
         out = self.duc1(out)
         out = self.duc2(out)
 
-        out = self.conv_out(out)
-        return out
+        out_joints = self.conv_out(out)
+
+        out_radius = self.conv_out_radius(out)
+        out_radius = torch.reshape(out_radius, shape=(out_radius.shape[0], -1))
+        out_radius = self.linear_radius(out_radius)
+
+        return {
+            "joints_map": out_joints,
+            "joints_radius": out_radius,
+        }
 
     def _initialize(self):
         for m in self.conv_out.modules():
@@ -65,3 +78,9 @@ class FastPose(nn.Module):
                 # logger.info('=> init {}.bias as 0'.format(name))
                 nn.init.normal_(m.weight, std=0.001)
                 nn.init.constant_(m.bias, 0)
+
+        nn.init.normal_(self.conv_out_radius.weight, std=0.001)
+        nn.init.constant_(self.conv_out_radius.bias, 0)
+
+        nn.init.xavier_uniform_(self.linear_radius.weight)
+        nn.init.constant_(self.linear_radius.bias, 0.01)

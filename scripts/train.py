@@ -1,6 +1,7 @@
 """Script for multi-gpu training."""
 import json
 import os
+from pprint import pformat
 
 import numpy as np
 import torch
@@ -24,37 +25,61 @@ else:
 
 
 def train(opt, train_loader, m, criterion, optimizer, writer):
-    loss_logger = DataLogger()
-    acc_logger = DataLogger()
+    loggers = {
+        'joint_loss': DataLogger(),
+        'radius_loss': DataLogger(),
+        'loss': DataLogger(),
+        'acc': DataLogger(),
+        'acc_radius': DataLogger(),
+    }
+
     m.train()
     norm_type = cfg.LOSS.get('NORM_TYPE', None)
 
     train_loader = tqdm(train_loader, dynamic_ncols=True)
 
-    for i, (inps, labels, label_masks, _, bboxes) in enumerate(train_loader):
+    for i, (inps, labels, label_masks, joint_radius_gt, _, bboxes) in enumerate(train_loader):
         if isinstance(inps, list):
-            inps = [inp.cuda().requires_grad_() for inp in inps]
+            if opt.device.type != 'cpu':
+                inps = [inp.cuda() for inp in inps]
+            inps = [inp.requires_grad_() for inp in inps]
         else:
-            inps = inps.cuda().requires_grad_()
-        labels = labels.cuda()
-        label_masks = label_masks.cuda()
+            if opt.device.type != 'cpu':
+                inps = inps.cuda()
+            inps = inps.requires_grad_()
+        if opt.device.type != 'cpu':
+            labels = labels.cuda()
+            label_masks = label_masks.cuda()
 
-        output = m(inps)
+        full_output = m(inps)
+        joint_map = full_output['joints_map']
+        joints_radius = full_output['joints_radius']
 
         if cfg.LOSS.get('TYPE') == 'MSELoss':
-            loss = 0.5 * criterion(output.mul(label_masks), labels.mul(label_masks))
-            acc = calc_accuracy(output.mul(label_masks), labels.mul(label_masks))
+            joint_loss = 0.5 * criterion(joint_map.mul(label_masks), labels.mul(label_masks))
+            radius_masks = label_masks[:, :, 0, 0] * (joint_radius_gt != -1)
+            coef = 1e-3
+            radius_loss = coef * 0.5 * criterion(joint_radius_gt.mul(radius_masks),
+                                          joints_radius.mul(radius_masks))
+            loss = joint_loss + radius_loss
+            acc = calc_accuracy(joint_map.mul(label_masks), labels.mul(label_masks))
+            acc_radius = ((joint_radius_gt.mul(radius_masks) - joints_radius.mul(radius_masks)) < 1).sum() / (
+                    joint_radius_gt.shape[0] * joint_radius_gt.shape[0])
         else:
-            loss = criterion(output, labels, label_masks)
-            acc = calc_integral_accuracy(output, labels, label_masks, output_3d=False, norm_type=norm_type)
+            raise NotImplementedError()
+            loss = criterion(joint_map, labels, label_masks)
+            acc = calc_integral_accuracy(joint_map, labels, label_masks, output_3d=False, norm_type=norm_type)
 
         if isinstance(inps, list):
             batch_size = inps[0].size(0)
         else:
             batch_size = inps.size(0)
 
-        loss_logger.update(loss.item(), batch_size)
-        acc_logger.update(acc, batch_size)
+        loggers["joint_loss"].update(joint_loss.item(), batch_size)
+        loggers["radius_loss"].update(radius_loss.item(), batch_size)
+        loggers["loss"].update(loss.item(), batch_size)
+        loggers["acc"].update(acc, batch_size)
+        loggers["acc_radius"].update(acc_radius, batch_size)
 
         optimizer.zero_grad()
         loss.backward()
@@ -63,22 +88,20 @@ def train(opt, train_loader, m, criterion, optimizer, writer):
         opt.trainIters += 1
         # Tensorboard
         if opt.board:
-            board_writing(writer, loss_logger.avg, acc_logger.avg, opt.trainIters, 'Train')
+            board_writing(writer, loggers, opt.trainIters, 'Train')
 
         # Debug
         if opt.debug and not i % 10:
-            debug_writing(writer, output, labels, inps, opt.trainIters)
+            debug_writing(writer, joint_map, labels, inps, opt.trainIters)
 
         # TQDM
         train_loader.set_description(
-            'loss: {loss:.8f} | acc: {acc:.4f}'.format(
-                loss=loss_logger.avg,
-                acc=acc_logger.avg)
+            " | ".join(f"{name}:{logger.avg:.05f}" for name, logger in loggers.items())
         )
 
     train_loader.close()
 
-    return loss_logger.avg, acc_logger.avg
+    return loggers
 
 
 def validate(m, opt, heatmap_to_coord, batch_size=20):
@@ -94,10 +117,11 @@ def validate(m, opt, heatmap_to_coord, batch_size=20):
     hm_size = cfg.DATA_PRESET.HEATMAP_SIZE
 
     for inps, crop_bboxes, bboxes, img_ids, scores, imghts, imgwds in tqdm(det_loader, dynamic_ncols=True):
-        if isinstance(inps, list):
-            inps = [inp.cuda() for inp in inps]
-        else:
-            inps = inps.cuda()
+        if opt.device.type != "cpu":
+            if isinstance(inps, list):
+                inps = [inp.cuda() for inp in inps]
+            else:
+                inps = inps.cuda()
         output = m(inps)
 
         pred = output
@@ -140,10 +164,11 @@ def validate_gt(m, opt, cfg, heatmap_to_coord, batch_size=20):
     hm_size = cfg.DATA_PRESET.HEATMAP_SIZE
 
     for inps, labels, label_masks, img_ids, bboxes in tqdm(gt_val_loader, dynamic_ncols=True):
-        if isinstance(inps, list):
-            inps = [inp.cuda() for inp in inps]
-        else:
-            inps = inps.cuda()
+        if opt.device.type != 'cpu':
+            if isinstance(inps, list):
+                inps = [inp.cuda() for inp in inps]
+            else:
+                inps = inps.cuda()
         output = m(inps)
 
         pred = output
@@ -182,9 +207,13 @@ def main():
 
     # Model Initialize
     m = preset_model(cfg)
-    m = nn.DataParallel(m).cuda()
+    m = nn.DataParallel(m)
+    if opt.device.type != 'cpu':
+        m = m.cuda()
 
-    criterion = builder.build_loss(cfg.LOSS).cuda()
+    criterion = builder.build_loss(cfg.LOSS)
+    if opt.device.type != 'cpu':
+        criterion=criterion.cuda()
 
     if cfg.TRAIN.OPTIMIZER == 'adam':
         optimizer = torch.optim.Adam(m.parameters(), lr=cfg.TRAIN.LR)
@@ -198,7 +227,7 @@ def main():
 
     train_dataset = builder.build_dataset(cfg.DATASET.TRAIN, preset_cfg=cfg.DATA_PRESET, train=True)
     train_loader = torch.utils.data.DataLoader(
-        train_dataset, batch_size=cfg.TRAIN.BATCH_SIZE * num_gpu, shuffle=True, num_workers=opt.nThreads)
+        train_dataset, batch_size=cfg.TRAIN.BATCH_SIZE * max(1, num_gpu), shuffle=False, num_workers=0)
 
     heatmap_to_coord = get_func_heatmap_to_coord(cfg)
 
@@ -211,8 +240,8 @@ def main():
         logger.info(f'############# Starting Epoch {opt.epoch} | LR: {current_lr} #############')
 
         # Training
-        loss, miou = train(opt, train_loader, m, criterion, optimizer, writer)
-        logger.epochInfo('Train', opt.epoch, loss, miou)
+        loggers = train(opt, train_loader, m, criterion, optimizer, writer)
+        logger.epochInfo('Train', opt.epoch, pformat(loggers))
 
         lr_scheduler.step()
 

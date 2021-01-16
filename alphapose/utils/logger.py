@@ -7,11 +7,12 @@ import torch
 import torch.nn.functional as F
 
 
-def board_writing(writer, loss, acc, iterations, dataset='Train'):
-    writer.add_scalar(
-        '{}/Loss'.format(dataset), loss, iterations)
-    writer.add_scalar(
-        '{}/acc'.format(dataset), acc, iterations)
+def board_writing(writer, loggers, iterations, dataset='Train'):
+    for name, logger in loggers.items():
+        writer.add_scalar(
+            f'{dataset}/{name}', logger.value, iterations)
+        writer.add_scalar(
+            f'{dataset}_avg/{name}', logger.avg, iterations)
 
 
 def debug_writing(writer, outputs, labels, inputs, iterations):
