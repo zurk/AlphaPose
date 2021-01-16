@@ -50,6 +50,7 @@ def train(opt, train_loader, m, criterion, optimizer, writer):
         if opt.device.type != 'cpu':
             labels = labels.cuda()
             label_masks = label_masks.cuda()
+            joint_radius_gt = joint_radius_gt.cuda()
 
         full_output = m(inps)
         joint_map = full_output['joints_map']
