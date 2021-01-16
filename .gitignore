@@ -117,3 +117,6 @@ tmp/
 exp/json
 tmp_*/
 example/res/
+
+# MacOS
+*.DS_Store

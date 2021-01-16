@@ -112,7 +112,8 @@ class Mscoco(CustomDataset):
                 'bbox': (xmin, ymin, xmax, ymax),
                 'width': width,
                 'height': height,
-                'joints_3d': joints_3d
+                'joints_3d': joints_3d,
+                'radius': self._ann_id_to_radius[obj['id']],
             })
 
         if not valid_objs:
