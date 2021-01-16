@@ -22,7 +22,7 @@ RUN apt-get update && \
     echo "en_US.UTF-8 UTF-8" > /etc/locale.gen && \
     locale-gen && \
     wget -O - https://bootstrap.pypa.io/get-pip.py | python3.7 && \
-    pip3 install --no-cache-dir Cython torch==1.4.0 torchvision==0.5.0 && \
+    pip3 install --no-cache-dir Cython torch==1.7.1 torchvision==0.8.2 && \
     pip3 install git+https://github.com/yanfengliu/cython_bbox.git && \
     pip3 install git+https://github.com/cocodataset/cocoapi.git@8c9bcc3cf640524c4c20a9c40e89cb6a2f2fa0e9#subdirectory=PythonAPI
 
