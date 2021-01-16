@@ -7,6 +7,7 @@ import numpy as np
 import torch
 import torch.nn as nn
 import torch.utils.data
+from torch.cuda.amp import autocast, GradScaler
 from tensorboardX import SummaryWriter
 from tqdm import tqdm
 
@@ -24,7 +25,7 @@ else:
     norm_layer = nn.BatchNorm2d
 
 
-def train(opt, train_loader, m, criterion, optimizer, writer):
+def train(opt, train_loader, m, criterion, optimizer, writer, scaler):
     loggers = {
         'joint_loss': DataLogger(),
         'radius_loss': DataLogger(),
@@ -51,25 +52,25 @@ def train(opt, train_loader, m, criterion, optimizer, writer):
             labels = labels.cuda()
             label_masks = label_masks.cuda()
             joint_radius_gt = joint_radius_gt.cuda()
+        with autocast():
+            full_output = m(inps)
+            joint_map = full_output['joints_map']
+            joints_radius = full_output['joints_radius']
 
-        full_output = m(inps)
-        joint_map = full_output['joints_map']
-        joints_radius = full_output['joints_radius']
-
-        if cfg.LOSS.get('TYPE') == 'MSELoss':
-            joint_loss = 0.5 * criterion(joint_map.mul(label_masks), labels.mul(label_masks))
-            radius_masks = label_masks[:, :, 0, 0] * (joint_radius_gt != -1)
-            coef = 1e-3
-            radius_loss = coef * 0.5 * criterion(joint_radius_gt.mul(radius_masks),
-                                          joints_radius.mul(radius_masks))
-            loss = joint_loss + radius_loss
-            acc = calc_accuracy(joint_map.mul(label_masks), labels.mul(label_masks))
-            acc_radius = ((joint_radius_gt.mul(radius_masks) - joints_radius.mul(radius_masks)) < 1).sum() / (
-                    joint_radius_gt.shape[0] * joint_radius_gt.shape[0])
-        else:
-            raise NotImplementedError()
-            loss = criterion(joint_map, labels, label_masks)
-            acc = calc_integral_accuracy(joint_map, labels, label_masks, output_3d=False, norm_type=norm_type)
+            if cfg.LOSS.get('TYPE') == 'MSELoss':
+                joint_loss = 0.5 * criterion(joint_map.mul(label_masks), labels.mul(label_masks))
+                radius_masks = label_masks[:, :, 0, 0] * (joint_radius_gt != -1)
+                coef = 1e-3
+                radius_loss = coef * 0.5 * criterion(joint_radius_gt.mul(radius_masks),
+                                              joints_radius.mul(radius_masks))
+                loss = joint_loss + radius_loss
+                acc = calc_accuracy(joint_map.mul(label_masks), labels.mul(label_masks))
+                acc_radius = ((joint_radius_gt.mul(radius_masks) - joints_radius.mul(radius_masks)) < 1).sum() / (
+                        joint_radius_gt.shape[0] * joint_radius_gt.shape[0])
+            else:
+                raise NotImplementedError()
+                loss = criterion(joint_map, labels, label_masks)
+                acc = calc_integral_accuracy(joint_map, labels, label_masks, output_3d=False, norm_type=norm_type)
 
         if isinstance(inps, list):
             batch_size = inps[0].size(0)
@@ -83,8 +84,9 @@ def train(opt, train_loader, m, criterion, optimizer, writer):
         loggers["acc_radius"].update(acc_radius, batch_size)
 
         optimizer.zero_grad()
-        loss.backward()
-        optimizer.step()
+        scaler.scale(loss).backward()
+        scaler.step(optimizer)
+        scaler.update()
 
         opt.trainIters += 1
         # Tensorboard
@@ -234,6 +236,8 @@ def main():
 
     opt.trainIters = 0
 
+    scaler = GradScaler()
+
     for i in range(cfg.TRAIN.BEGIN_EPOCH, cfg.TRAIN.END_EPOCH):
         opt.epoch = i
         current_lr = optimizer.state_dict()['param_groups'][0]['lr']
@@ -241,7 +245,7 @@ def main():
         logger.info(f'############# Starting Epoch {opt.epoch} | LR: {current_lr} #############')
 
         # Training
-        loggers = train(opt, train_loader, m, criterion, optimizer, writer)
+        loggers = train(opt, train_loader, m, criterion, optimizer, writer, scaler)
         logger.info(f'Train-{opt.epoch:d} epoch | '
                     f'{" | ".join(f"{name}:{l.avg:.07f}" for name, l in loggers.items())}')
 
