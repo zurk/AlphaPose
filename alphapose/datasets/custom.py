@@ -94,6 +94,8 @@ class CustomDataset(data.Dataset):
         else:
             raise NotImplementedError
 
+        with open(os.path.join(self._root, cfg["RADIUS_ANN"])) as f:
+            self._ann_id_to_radius = {int(k): np.array(v, dtype=np.float32) for k, v in json.load(f).items()}
         self._items, self._labels = self._lazy_load_json()
 
     def __getitem__(self, idx):
