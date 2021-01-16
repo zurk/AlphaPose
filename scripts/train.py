@@ -242,7 +242,8 @@ def main():
 
         # Training
         loggers = train(opt, train_loader, m, criterion, optimizer, writer)
-        logger.epochInfo('Train', opt.epoch, pformat(loggers))
+        logger.info(f'Train-{opt.epoch:d} epoch | '
+                    f'{" | ".join(f"{name}:{logger.avg:.07f}" for name, logger in loggers.items())}')
 
         lr_scheduler.step()
 

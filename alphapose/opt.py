@@ -73,15 +73,3 @@ logger = logging.getLogger('')
 logger.setLevel(logging.INFO)
 logger.addHandler(filehandler)
 logger.addHandler(streamhandler)
-
-
-def epochInfo(self, set, idx, loss, acc):
-    self.info('{set}-{idx:d} epoch | loss:{loss:.8f} | acc:{acc:.4f}'.format(
-        set=set,
-        idx=idx,
-        loss=loss,
-        acc=acc
-    ))
-
-
-logger.epochInfo = MethodType(epochInfo, logger)
