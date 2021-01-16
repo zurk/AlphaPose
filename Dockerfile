@@ -26,6 +26,13 @@ RUN apt-get update && \
     pip3 install git+https://github.com/yanfengliu/cython_bbox.git && \
     pip3 install git+https://github.com/cocodataset/cocoapi.git@8c9bcc3cf640524c4c20a9c40e89cb6a2f2fa0e9#subdirectory=PythonAPI
 
-COPY . /home/AlphaPose
+COPY setup.py README.md /home/AlphaPose/
+COPY detector/nms /home/AlphaPose/detector/nms
+COPY alphapose/utils/roi_align /home/AlphaPose/alphapose/utils/roi_align
+COPY alphapose/models/layers/dcn /home/AlphaPose/alphapose/models/layers/dcn
+COPY alphapose/__init__.py /home/AlphaPose/alphapose/__init__.py
+
 WORKDIR /home/AlphaPose
 RUN python3.7 setup.py build develop --user
+
+COPY . /home/AlphaPose
