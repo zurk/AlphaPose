@@ -210,6 +210,7 @@ def main():
 
     # Model Initialize
     m = preset_model(cfg)
+    # todo: try to replace with distributedDataParallel to see if it is faster
     m = nn.DataParallel(m)
     if opt.device.type != 'cpu':
         m = m.cuda()
