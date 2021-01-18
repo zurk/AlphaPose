@@ -213,7 +213,7 @@ def validate_gt(m, opt, cfg, heatmap_to_coord, batch_size=64):
     res = evaluate_mAP(os.path.join(opt.work_dir, 'test_gt_kpt.json'), ann_type='keypoints', ann_file=os.path.join(cfg.DATASET.VAL.ROOT, cfg.DATASET.VAL.ANN))
     return {
         "map": res,
-        "radius_mse": joint_radius_mse.value,
+        "radius_mse": joint_radius_mse.avg,
     }
 
 def main():
