@@ -40,6 +40,8 @@ def train(opt, train_loader, m, criterion, optimizer, writer, scaler):
     train_loader = tqdm(train_loader, dynamic_ncols=True)
 
     for i, (inps, labels, label_masks, joint_radius_gt, _, bboxes) in enumerate(train_loader):
+        if i > 3:
+            break
         if isinstance(inps, list):
             if opt.device.type != 'cpu':
                 inps = [inp.cuda() for inp in inps]
@@ -110,7 +112,7 @@ def train(opt, train_loader, m, criterion, optimizer, writer, scaler):
 def validate(m, opt, heatmap_to_coord, batch_size=64):
     det_dataset = builder.build_dataset(cfg.DATASET.TEST, preset_cfg=cfg.DATA_PRESET, train=False, opt=opt)
     det_loader = torch.utils.data.DataLoader(
-        det_dataset, batch_size=batch_size, shuffle=False, num_workers=opt.nThreads, drop_last=False)
+        det_dataset, batch_size=batch_size, shuffle=False, num_workers=0, drop_last=False)
     kpt_json = []
     eval_joints = det_dataset.EVAL_JOINTS
 
@@ -151,7 +153,8 @@ def validate(m, opt, heatmap_to_coord, batch_size=64):
 
     with open(os.path.join(opt.work_dir, 'test_kpt.json'), 'w') as fid:
         json.dump(kpt_json, fid)
-    res = evaluate_mAP(os.path.join(opt.work_dir, 'test_kpt.json'), ann_type='keypoints', ann_file=os.path.join(cfg.DATASET.VAL.ROOT, cfg.DATASET.VAL.ANN))
+    #res = evaluate_mAP(os.path.join(opt.work_dir, 'test_kpt.json'), ann_type='keypoints', ann_file=os.path.join(cfg.DATASET.VAL.ROOT, cfg.DATASET.VAL.ANN))
+    res = 0
     return res
 
 
@@ -161,7 +164,7 @@ def validate_gt(m, opt, cfg, heatmap_to_coord, batch_size=64):
     eval_joints = gt_val_dataset.EVAL_JOINTS
 
     gt_val_loader = torch.utils.data.DataLoader(
-        gt_val_dataset, batch_size=batch_size, shuffle=False, num_workers=opt.nThreads, drop_last=False)
+        gt_val_dataset, batch_size=batch_size, shuffle=False, num_workers=0, drop_last=False)
     kpt_json = []
     m.eval()
 
@@ -170,6 +173,8 @@ def validate_gt(m, opt, cfg, heatmap_to_coord, batch_size=64):
 
     mse_loss = nn.MSELoss()
     for index, (inps, labels, label_masks, joint_radius_gt, img_ids, bboxes) in tqdm(enumerate(gt_val_loader), dynamic_ncols=True):
+        if index > 4:
+            break
         if opt.device.type != 'cpu':
             if isinstance(inps, list):
                 inps = [inp.cuda() for inp in inps]
@@ -210,7 +215,8 @@ def validate_gt(m, opt, cfg, heatmap_to_coord, batch_size=64):
 
     with open(os.path.join(opt.work_dir, 'test_gt_kpt.json'), 'w') as fid:
         json.dump(kpt_json, fid)
-    res = evaluate_mAP(os.path.join(opt.work_dir, 'test_gt_kpt.json'), ann_type='keypoints', ann_file=os.path.join(cfg.DATASET.VAL.ROOT, cfg.DATASET.VAL.ANN))
+    #res = evaluate_mAP(os.path.join(opt.work_dir, 'test_gt_kpt.json'), ann_type='keypoints', ann_file=os.path.join(cfg.DATASET.VAL.ROOT, cfg.DATASET.VAL.ANN))
+    res = 0
     return {
         "map": res,
         "radius_mse": joint_radius_mse.avg,
@@ -246,7 +252,7 @@ def main():
 
     train_dataset = builder.build_dataset(cfg.DATASET.TRAIN, preset_cfg=cfg.DATA_PRESET, train=True)
     train_loader = torch.utils.data.DataLoader(
-        train_dataset, batch_size=cfg.TRAIN.BATCH_SIZE * max(1, num_gpu), shuffle=False, num_workers=opt.nThreads)
+        train_dataset, batch_size=cfg.TRAIN.BATCH_SIZE * max(1, num_gpu), shuffle=False, num_workers=0)
 
     heatmap_to_coord = get_func_heatmap_to_coord(cfg)
 
@@ -296,7 +302,7 @@ def main():
             # Reset dataset
             train_dataset = builder.build_dataset(cfg.DATASET.TRAIN, preset_cfg=cfg.DATA_PRESET, train=True, dpg=True)
             train_loader = torch.utils.data.DataLoader(
-                train_dataset, batch_size=cfg.TRAIN.BATCH_SIZE * num_gpu, shuffle=True, num_workers=opt.nThreads)
+                train_dataset, batch_size=cfg.TRAIN.BATCH_SIZE * num_gpu, shuffle=True, num_workers=0)
 
     torch.save(m.module.state_dict(), './exp/{}-{}/final_DPG.pth'.format(opt.exp_id, cfg.FILE_NAME))
 

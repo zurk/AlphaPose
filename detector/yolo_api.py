@@ -23,7 +23,7 @@ from detector.apis import BaseDetector
 #only windows visual studio 2013 ~2017 support compile c/cuda extensions
 #If you force to compile extension on Windows and ensure appropriate visual studio
 #is intalled, you can try to use these ext_modules.
-if platform.system() != 'Windows':
+if platform.system() not in {'Windows', 'Darwin'}:
     from detector.nms import nms_wrapper
 
 
@@ -247,7 +247,7 @@ class YOLODetector(BaseDetector):
         args = self.detector_opt
         _CUDA = True
         if args:
-            if args.gpus[0] < 0:
+            if len(args.gpus) == 0:
                 _CUDA = False
         if not self.model:
             self.load_model()
