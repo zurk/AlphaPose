@@ -107,11 +107,11 @@ def train(opt, train_loader, m, criterion, optimizer, writer, scaler):
     return loggers
 
 
-def validate(m, opt, heatmap_to_coord, batch_size=20):
+def validate(m, opt, heatmap_to_coord, batch_size=64):
     joint_radius_mse = DataLogger()
     det_dataset = builder.build_dataset(cfg.DATASET.TEST, preset_cfg=cfg.DATA_PRESET, train=False, opt=opt)
     det_loader = torch.utils.data.DataLoader(
-        det_dataset, batch_size=batch_size, shuffle=False, num_workers=20, drop_last=False)
+        det_dataset, batch_size=batch_size, shuffle=False, num_workers=opt.nThreads, drop_last=False)
     kpt_json = []
     eval_joints = det_dataset.EVAL_JOINTS
 
@@ -169,13 +169,13 @@ def validate(m, opt, heatmap_to_coord, batch_size=20):
     }
 
 
-def validate_gt(m, opt, cfg, heatmap_to_coord, batch_size=20):
+def validate_gt(m, opt, cfg, heatmap_to_coord, batch_size=64):
     joint_radius_mse = DataLogger()
     gt_val_dataset = builder.build_dataset(cfg.DATASET.VAL, preset_cfg=cfg.DATA_PRESET, train=False)
     eval_joints = gt_val_dataset.EVAL_JOINTS
 
     gt_val_loader = torch.utils.data.DataLoader(
-        gt_val_dataset, batch_size=batch_size, shuffle=False, num_workers=20, drop_last=False)
+        gt_val_dataset, batch_size=batch_size, shuffle=False, num_workers=opt.nThreads, drop_last=False)
     kpt_json = []
     m.eval()
 
@@ -260,7 +260,7 @@ def main():
 
     train_dataset = builder.build_dataset(cfg.DATASET.TRAIN, preset_cfg=cfg.DATA_PRESET, train=True)
     train_loader = torch.utils.data.DataLoader(
-        train_dataset, batch_size=cfg.TRAIN.BATCH_SIZE * max(1, num_gpu), shuffle=False, num_workers=0)
+        train_dataset, batch_size=cfg.TRAIN.BATCH_SIZE * max(1, num_gpu), shuffle=False, num_workers=opt.nThreads)
 
     heatmap_to_coord = get_func_heatmap_to_coord(cfg)
 
