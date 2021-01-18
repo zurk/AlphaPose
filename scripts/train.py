@@ -205,7 +205,7 @@ def validate_gt(m, opt, cfg, heatmap_to_coord, batch_size=64):
         joint_radius_gt = joint_radius_gt[:, eval_joints]
         joint_radius_gt = joint_radius_gt[radius_masks]
         joints_radius = joints_radius[radius_masks]
-        joints_radius_error = mse_loss(joint_radius_gt, joints_radius)
+        joints_radius_error = mse_loss(joint_radius_gt, joints_radius.cpu())
         joint_radius_mse.update(joints_radius_error, joint_radius_gt.shape[0])
 
     with open(os.path.join(opt.work_dir, 'test_gt_kpt.json'), 'w') as fid:
