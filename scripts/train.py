@@ -60,7 +60,7 @@ def train(opt, train_loader, m, criterion, optimizer, writer, scaler):
             if cfg.LOSS.get('TYPE') == 'MSELoss':
                 joint_loss = 0.5 * criterion(joint_map.mul(label_masks), labels.mul(label_masks))
                 radius_masks = label_masks[:, :, 0, 0] * (joint_radius_gt != -1)
-                coef = 1e-3
+                coef = 1e-4
                 radius_loss = coef * 0.5 * criterion(joint_radius_gt.mul(radius_masks),
                                               joints_radius.mul(radius_masks))
                 loss = joint_loss + radius_loss
@@ -108,6 +108,7 @@ def train(opt, train_loader, m, criterion, optimizer, writer, scaler):
 
 
 def validate(m, opt, heatmap_to_coord, batch_size=20):
+    joint_radius_mse = DataLogger()
     det_dataset = builder.build_dataset(cfg.DATASET.TEST, preset_cfg=cfg.DATA_PRESET, train=False, opt=opt)
     det_loader = torch.utils.data.DataLoader(
         det_dataset, batch_size=batch_size, shuffle=False, num_workers=20, drop_last=False)
@@ -119,19 +120,22 @@ def validate(m, opt, heatmap_to_coord, batch_size=20):
     norm_type = cfg.LOSS.get('NORM_TYPE', None)
     hm_size = cfg.DATA_PRESET.HEATMAP_SIZE
 
-    for inps, crop_bboxes, bboxes, img_ids, scores, imghts, imgwds in tqdm(det_loader, dynamic_ncols=True):
+    mse_loss = nn.MSELoss()
+    for index, (inps, crop_bboxes, bboxes, joint_radius_gt, img_ids, scores, imghts, imgwds) in tqdm(enumerate(det_loader), dynamic_ncols=True):
         if opt.device.type != "cpu":
             if isinstance(inps, list):
                 inps = [inp.cuda() for inp in inps]
             else:
                 inps = inps.cuda()
-        output = m(inps)
+        full_output = m(inps)
+        joints_map = full_output['joints_map']
+        joints_radius = full_output['joints_radius']
 
-        pred = output
+        pred = joints_map
         assert pred.dim() == 4
         pred = pred[:, eval_joints, :, :]
 
-        for i in range(output.shape[0]):
+        for i in range(joints_map.shape[0]):
             bbox = crop_bboxes[i].tolist()
             pose_coords, pose_scores = heatmap_to_coord(
                 pred[i][det_dataset.EVAL_JOINTS], bbox, hm_shape=hm_size, norm_type=norm_type)
@@ -148,13 +152,25 @@ def validate(m, opt, heatmap_to_coord, batch_size=20):
 
             kpt_json.append(data)
 
+        radius_masks = (joint_radius_gt != -1)
+        joints_radius = joints_radius[:, eval_joints]
+        joint_radius_gt = joint_radius_gt[:, eval_joints]
+        joint_radius_gt = joint_radius_gt[radius_masks]
+        joints_radius = joints_radius[radius_masks]
+        joints_radius_error = mse_loss(joint_radius_gt, joints_radius)
+        joint_radius_mse.update(joints_radius_error, joint_radius_gt.shape[0])
+
     with open(os.path.join(opt.work_dir, 'test_kpt.json'), 'w') as fid:
         json.dump(kpt_json, fid)
     res = evaluate_mAP(os.path.join(opt.work_dir, 'test_kpt.json'), ann_type='keypoints', ann_file=os.path.join(cfg.DATASET.VAL.ROOT, cfg.DATASET.VAL.ANN))
-    return res
+    return {
+        "map": res,
+        "radius_mse": joint_radius_mse.value,
+    }
 
 
 def validate_gt(m, opt, cfg, heatmap_to_coord, batch_size=20):
+    joint_radius_mse = DataLogger()
     gt_val_dataset = builder.build_dataset(cfg.DATASET.VAL, preset_cfg=cfg.DATA_PRESET, train=False)
     eval_joints = gt_val_dataset.EVAL_JOINTS
 
@@ -166,19 +182,22 @@ def validate_gt(m, opt, cfg, heatmap_to_coord, batch_size=20):
     norm_type = cfg.LOSS.get('NORM_TYPE', None)
     hm_size = cfg.DATA_PRESET.HEATMAP_SIZE
 
-    for inps, labels, label_masks, img_ids, bboxes in tqdm(gt_val_loader, dynamic_ncols=True):
+    mse_loss = nn.MSELoss()
+    for index, (inps, labels, label_masks, joint_radius_gt, img_ids, bboxes) in tqdm(enumerate(gt_val_loader), dynamic_ncols=True):
         if opt.device.type != 'cpu':
             if isinstance(inps, list):
                 inps = [inp.cuda() for inp in inps]
             else:
                 inps = inps.cuda()
-        output = m(inps)
+        full_output = m(inps)
+        joints_map = full_output['joints_map']
+        joints_radius = full_output['joints_radius']
 
-        pred = output
+        pred = joints_map
         assert pred.dim() == 4
         pred = pred[:, eval_joints, :, :]
 
-        for i in range(output.shape[0]):
+        for i in range(joints_map.shape[0]):
             bbox = bboxes[i].tolist()
             pose_coords, pose_scores = heatmap_to_coord(
                 pred[i][gt_val_dataset.EVAL_JOINTS], bbox, hm_shape=hm_size, norm_type=norm_type)
@@ -195,11 +214,21 @@ def validate_gt(m, opt, cfg, heatmap_to_coord, batch_size=20):
 
             kpt_json.append(data)
 
+        radius_masks = (label_masks[:, :, 0, 0] != 0) & (joint_radius_gt != -1)
+        joints_radius = joints_radius[:, eval_joints]
+        joint_radius_gt = joint_radius_gt[:, eval_joints]
+        joint_radius_gt = joint_radius_gt[radius_masks]
+        joints_radius = joints_radius[radius_masks]
+        joints_radius_error = mse_loss(joint_radius_gt, joints_radius)
+        joint_radius_mse.update(joints_radius_error, joint_radius_gt.shape[0])
+
     with open(os.path.join(opt.work_dir, 'test_gt_kpt.json'), 'w') as fid:
         json.dump(kpt_json, fid)
     res = evaluate_mAP(os.path.join(opt.work_dir, 'test_gt_kpt.json'), ann_type='keypoints', ann_file=os.path.join(cfg.DATASET.VAL.ROOT, cfg.DATASET.VAL.ANN))
-    return res
-
+    return {
+        "map": res,
+        "radius_mse": joint_radius_mse.value,
+    }
 
 def main():
     logger.info('******************************')
@@ -257,9 +286,22 @@ def main():
             torch.save(m.module.state_dict(), './exp/{}-{}/model_{}.pth'.format(opt.exp_id, cfg.FILE_NAME, opt.epoch))
             # Prediction Test
             with torch.no_grad():
-                gt_AP = validate_gt(m.module, opt, cfg, heatmap_to_coord)
-                rcnn_AP = validate(m.module, opt, heatmap_to_coord)
-                logger.info(f'##### Epoch {opt.epoch} | gt mAP: {gt_AP} | rcnn mAP: {rcnn_AP} #####')
+                metrics_on_true_box = validate_gt(m.module, opt, cfg, heatmap_to_coord)
+                gt_AP = metrics_on_true_box["map"]
+                gt_radius_mse = metrics_on_true_box["radius_mse"]
+                metrics_on_predicted_box = validate(m.module, opt, heatmap_to_coord)
+                rcnn_radius_mse = metrics_on_predicted_box["radius_mse"]
+                rcnn_AP = metrics_on_predicted_box["map"]
+                logger.info(f'##### Epoch {opt.epoch} | '
+                            f'gt mAP: {gt_AP} | '
+                            f'rcnn mAP: {rcnn_AP} | '
+                            f'gt radius_mse {gt_radius_mse} | '
+                            f'rcnn radius_mse {rcnn_radius_mse} #####')
+
+            writer.add_scalar(f'Validation/mAP_on_gt_box', gt_AP, opt.trainIters)
+            writer.add_scalar(f'Validation/mAP_on_pred_box', rcnn_AP, opt.trainIters)
+            writer.add_scalar(f'Validation/radius_mse_on_gt_box', gt_radius_mse, opt.trainIters)
+            writer.add_scalar(f'Validation/radius_mse_on_pred_box', rcnn_radius_mse, opt.trainIters)
 
         # Time to add DPG
         if i == cfg.TRAIN.DPG_MILESTONE:
