@@ -63,7 +63,7 @@ def train(opt, train_loader, m, criterion, optimizer, writer, scaler, heatmap_to
             if cfg.LOSS.get('TYPE') == 'MSELoss':
                 joint_loss = 0.5 * criterion(joint_map.mul(label_masks), labels.mul(label_masks))
                 loss = joint_loss
-                if opt.radius_fit:
+                if opt.fit_radius:
                     radius_masks = label_masks[:, :, 0, 0] * (joint_radius_gt != -1)
                     coef = 1
                     radius_loss = coef * 0.5 * criterion(joint_radius_gt.mul(radius_masks),
