@@ -25,7 +25,7 @@ else:
     norm_layer = nn.BatchNorm2d
 
 
-def train(opt, train_loader, m, criterion, optimizer, writer, scaler):
+def train(opt, train_loader, m, criterion, optimizer, writer, scaler, heatmap_to_coord):
     loggers = {
         'joint_loss': DataLogger(),
         'radius_loss': DataLogger(),
@@ -60,7 +60,7 @@ def train(opt, train_loader, m, criterion, optimizer, writer, scaler):
             if cfg.LOSS.get('TYPE') == 'MSELoss':
                 joint_loss = 0.5 * criterion(joint_map.mul(label_masks), labels.mul(label_masks))
                 radius_masks = label_masks[:, :, 0, 0] * (joint_radius_gt != -1)
-                coef = 1e-4
+                coef = 1
                 radius_loss = coef * 0.5 * criterion(joint_radius_gt.mul(radius_masks),
                                               joints_radius.mul(radius_masks))
                 loss = joint_loss + radius_loss
@@ -94,8 +94,10 @@ def train(opt, train_loader, m, criterion, optimizer, writer, scaler):
             board_writing(writer, loggers, opt.trainIters, 'Train')
 
         # Debug
-        if opt.debug and not i % 10:
-            debug_writing(writer, joint_map, labels, inps, opt.trainIters)
+        if opt.debug and not i % 100:
+            debug_writing(
+                writer, joint_map, joints_radius, labels, joint_radius_gt, inps, opt.trainIters,
+                heatmap_to_coord, bboxes, norm_type)
 
         # TQDM
         train_loader.set_description(
@@ -261,7 +263,7 @@ def main():
         logger.info(f'############# Starting Epoch {opt.epoch} | LR: {current_lr} #############')
 
         # Training
-        loggers = train(opt, train_loader, m, criterion, optimizer, writer, scaler)
+        loggers = train(opt, train_loader, m, criterion, optimizer, writer, scaler, heatmap_to_coord)
         logger.info(f'Train-{opt.epoch:d} epoch | '
                     f'{" | ".join(f"{name}:{l.avg:.07f}" for name, l in loggers.items())}')
 

@@ -216,11 +216,9 @@ class SimpleTransform(object):
                 center, scale = c_half_body, s_half_body
 
         # rescale
-        scale_factor = 1.0
         if self._train:
             sf = self._scale_factor
-            scale_factor = np.clip(np.random.randn() * sf + 1, 1 - sf, 1 + sf)
-            scale = scale * scale_factor
+            scale = scale * np.clip(np.random.randn() * sf + 1, 1 - sf, 1 + sf)
         else:
             scale = scale * 1.0
 
@@ -260,8 +258,9 @@ class SimpleTransform(object):
             target, target_weight = self._integral_target_generator(joints, self.num_joints, inp_h, inp_w, source)
 
         bbox = _center_scale_to_box(center, scale)
+        distance_coef = cv2.norm(affine_transform([0, 0], trans), affine_transform([0, 1], trans))
         joint_radius = label['radius']
-        joint_radius[joint_radius != -1] *= scale_factor
+        joint_radius[joint_radius != -1] *= distance_coef / inp_w
 
         img = im_to_torch(img)
         img[0].add_(-0.406)
