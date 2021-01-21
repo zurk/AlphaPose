@@ -43,6 +43,8 @@ parser.add_argument('--detector', dest='detector',
                     help='detector name', default="yolo")
 parser.add_argument('--no-radius-fit', dest='fit_radius',
                     help='Off joint radius fitting', default=True, action="store_false")
+parser.add_argument('--clean',
+                    help='Remove all directories if exists and start from scratch', default=False, action="store_true")
 
 "----------------------------- Log options -----------------------------"
 parser.add_argument('--board', default=True, dest='board',

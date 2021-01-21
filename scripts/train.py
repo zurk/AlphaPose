@@ -1,7 +1,9 @@
 """Script for multi-gpu training."""
 import json
 import os
+from pathlib import Path
 from pprint import pformat
+import shutil
 
 import numpy as np
 import torch
@@ -25,7 +27,7 @@ else:
     norm_layer = nn.BatchNorm2d
 
 
-def train(opt, train_loader, m, criterion, optimizer, writer, scaler, heatmap_to_coord):
+def train(opt, train_loader, m, criterion, optimizer, writer, scaler):
     loggers = {
         'joint_loss': DataLogger(),
         'radius_loss': DataLogger(),
@@ -33,13 +35,11 @@ def train(opt, train_loader, m, criterion, optimizer, writer, scaler, heatmap_to
         'acc': DataLogger(),
         'acc_radius': DataLogger(),
     }
-
     m.train()
-    norm_type = cfg.LOSS.get('NORM_TYPE', None)
-
+    train_dataset = train_loader.dataset
     train_loader = tqdm(train_loader, dynamic_ncols=True)
 
-    radius_loss = -1
+    radius_loss_item = -1
     acc_radius = -1
 
     for i, (inps, labels, label_masks, joint_radius_gt, _, bboxes) in enumerate(train_loader):
@@ -69,6 +69,7 @@ def train(opt, train_loader, m, criterion, optimizer, writer, scaler, heatmap_to
                     radius_loss = coef * 0.5 * criterion(joint_radius_gt.mul(radius_masks),
                                                          joints_radius.mul(radius_masks))
                     loss += radius_loss
+                    radius_loss_item = radius_loss.item()
                     acc_radius = ((joint_radius_gt.mul(radius_masks) - joints_radius.mul(radius_masks)) < 1).sum() / (
                             joint_radius_gt.shape[0] * joint_radius_gt.shape[0])
                 acc = calc_accuracy(joint_map.mul(label_masks), labels.mul(label_masks))
@@ -83,7 +84,7 @@ def train(opt, train_loader, m, criterion, optimizer, writer, scaler, heatmap_to
             batch_size = inps.size(0)
 
         loggers["joint_loss"].update(joint_loss.item(), batch_size)
-        loggers["radius_loss"].update(radius_loss.item(), batch_size)
+        loggers["radius_loss"].update(radius_loss_item, batch_size)
         loggers["loss"].update(loss.item(), batch_size)
         loggers["acc"].update(acc, batch_size)
         loggers["acc_radius"].update(acc_radius, batch_size)
@@ -100,9 +101,16 @@ def train(opt, train_loader, m, criterion, optimizer, writer, scaler, heatmap_to
 
         # Debug
         if opt.debug and not i % 100:
+            debug_image_index = 1525
+            debug_data = train_dataset[debug_image_index]
+            (inps, labels, label_masks, joint_radius_gt, _, bboxes) = debug_data
+            inps = inps[None, :]
+            full_output = m(inps)
+            joint_map = full_output['joints_map']
+            joints_radius = full_output['joints_radius']
+
             debug_writing(
-                writer, joint_map, joints_radius, labels, joint_radius_gt, inps, opt.trainIters,
-                heatmap_to_coord, bboxes, norm_type)
+                writer, joint_map, joints_radius, labels[None, :], joint_radius_gt[None, :], inps, opt.trainIters)
 
         # TQDM
         train_loader.set_description(
@@ -249,7 +257,16 @@ def main():
     lr_scheduler = torch.optim.lr_scheduler.MultiStepLR(
         optimizer, milestones=cfg.TRAIN.LR_STEP, gamma=cfg.TRAIN.LR_FACTOR)
 
-    writer = SummaryWriter('.tensorboard/{}-{}'.format(opt.exp_id, cfg.FILE_NAME))
+    tensorboard_path = Path(f'.tensorboard/{opt.exp_id}-{cfg.FILE_NAME}')
+    experiment_path = Path(f'exp/{opt.exp_id}-{cfg.FILE_NAME}')
+    if opt.clean:
+        if tensorboard_path.exists():
+            shutil.rmtree(tensorboard_path)
+        if experiment_path.exists():
+            shutil.rmtree(experiment_path)
+    tensorboard_path.mkdir(exist_ok=True, parents=True)
+    experiment_path.mkdir(exist_ok=True, parents=True)
+    writer = SummaryWriter(str(tensorboard_path))
 
     train_dataset = builder.build_dataset(cfg.DATASET.TRAIN, preset_cfg=cfg.DATA_PRESET, train=True)
     train_loader = torch.utils.data.DataLoader(
@@ -268,7 +285,7 @@ def main():
         logger.info(f'############# Starting Epoch {opt.epoch} | LR: {current_lr} #############')
 
         # Training
-        loggers = train(opt, train_loader, m, criterion, optimizer, writer, scaler, heatmap_to_coord)
+        loggers = train(opt, train_loader, m, criterion, optimizer, writer, scaler)
         logger.info(f'Train-{opt.epoch:d} epoch | '
                     f'{" | ".join(f"{name}:{l.avg:.07f}" for name, l in loggers.items())}')
 
@@ -276,7 +293,7 @@ def main():
 
         if (i + 1) % opt.snapshot == 0:
             # Save checkpoint
-            torch.save(m.module.state_dict(), './exp/{}-{}/model_{}.pth'.format(opt.exp_id, cfg.FILE_NAME, opt.epoch))
+            torch.save(m.module.state_dict(), str(experiment_path / f'model_{opt.epoch}.pth'))
             # Prediction Test
             with torch.no_grad():
                 metrics_on_true_box = validate_gt(m.module, opt, cfg, heatmap_to_coord)
@@ -295,7 +312,7 @@ def main():
 
         # Time to add DPG
         if i == cfg.TRAIN.DPG_MILESTONE:
-            torch.save(m.module.state_dict(), './exp/{}-{}/final.pth'.format(opt.exp_id, cfg.FILE_NAME))
+            torch.save(m.module.state_dict(), str(experiment_path / "final.pth"))
             # Adjust learning rate
             for param_group in optimizer.param_groups:
                 param_group['lr'] = cfg.TRAIN.LR
@@ -305,7 +322,7 @@ def main():
             train_loader = torch.utils.data.DataLoader(
                 train_dataset, batch_size=cfg.TRAIN.BATCH_SIZE * num_gpu, shuffle=True, num_workers=opt.nThreads)
 
-    torch.save(m.module.state_dict(), './exp/{}-{}/final_DPG.pth'.format(opt.exp_id, cfg.FILE_NAME))
+    torch.save(m.module.state_dict(), str(experiment_path /'final_DPG.pth'))
 
 
 def preset_model(cfg):

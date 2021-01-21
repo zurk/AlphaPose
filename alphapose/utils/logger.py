@@ -18,9 +18,8 @@ def board_writing(writer, loggers, iterations, dataset='Train'):
             f'{dataset}_avg/{name}', logger.avg, iterations)
 
 
-def debug_writing(writer, joint_map, joint_radius, joint_map_gt, joint_radius_gt, inputs, iterations,
-                  heatmap_to_coord, bboxes, norm_type, ):
-    batch_index = 10
+def debug_writing(writer, joint_map, joint_radius, joint_map_gt, joint_radius_gt, inputs, iterations):
+    batch_index = 0
     input_map = torch.unsqueeze(joint_map_gt.cpu().data[batch_index], dim=1)
     output_map = torch.unsqueeze(joint_map.cpu().data[batch_index], dim=1)
 
