@@ -39,6 +39,9 @@ def train(opt, train_loader, m, criterion, optimizer, writer, scaler, heatmap_to
 
     train_loader = tqdm(train_loader, dynamic_ncols=True)
 
+    radius_loss = -1
+    acc_radius = -1
+
     for i, (inps, labels, label_masks, joint_radius_gt, _, bboxes) in enumerate(train_loader):
         if isinstance(inps, list):
             if opt.device.type != 'cpu':
@@ -59,14 +62,16 @@ def train(opt, train_loader, m, criterion, optimizer, writer, scaler, heatmap_to
 
             if cfg.LOSS.get('TYPE') == 'MSELoss':
                 joint_loss = 0.5 * criterion(joint_map.mul(label_masks), labels.mul(label_masks))
-                radius_masks = label_masks[:, :, 0, 0] * (joint_radius_gt != -1)
-                coef = 1
-                radius_loss = coef * 0.5 * criterion(joint_radius_gt.mul(radius_masks),
-                                              joints_radius.mul(radius_masks))
-                loss = joint_loss + radius_loss
+                loss = joint_loss
+                if opt.radius_fit:
+                    radius_masks = label_masks[:, :, 0, 0] * (joint_radius_gt != -1)
+                    coef = 1
+                    radius_loss = coef * 0.5 * criterion(joint_radius_gt.mul(radius_masks),
+                                                         joints_radius.mul(radius_masks))
+                    loss += radius_loss
+                    acc_radius = ((joint_radius_gt.mul(radius_masks) - joints_radius.mul(radius_masks)) < 1).sum() / (
+                            joint_radius_gt.shape[0] * joint_radius_gt.shape[0])
                 acc = calc_accuracy(joint_map.mul(label_masks), labels.mul(label_masks))
-                acc_radius = ((joint_radius_gt.mul(radius_masks) - joints_radius.mul(radius_masks)) < 1).sum() / (
-                        joint_radius_gt.shape[0] * joint_radius_gt.shape[0])
             else:
                 raise NotImplementedError()
                 loss = criterion(joint_map, labels, label_masks)

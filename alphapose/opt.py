@@ -41,6 +41,8 @@ parser.add_argument('--sync', default=False, dest='sync',
                     help='Use Sync Batchnorm', action='store_true')
 parser.add_argument('--detector', dest='detector',
                     help='detector name', default="yolo")
+parser.add_argument('--no-radius-fit', dest='fit_radius',
+                    help='Off joint radius fitting', default=True, action="store_false")
 
 "----------------------------- Log options -----------------------------"
 parser.add_argument('--board', default=True, dest='board',
