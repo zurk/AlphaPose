@@ -5,12 +5,12 @@ DATASET:
     IMG_PREFIX: 'train2017'
     ANN: 'annotations/person_keypoints_train2017.json'
     RADIUS_ANN: 'annotations/person_keypoints_radius_train2017.json'
-    AUG:
-      FLIP: true
-      ROT_FACTOR: 40
-      SCALE_FACTOR: 0.3
-      NUM_JOINTS_HALF_BODY: 8
-      PROB_HALF_BODY: -1
+#    AUG:
+#      FLIP: true
+#      ROT_FACTOR: 40
+#      SCALE_FACTOR: 0.3
+#      NUM_JOINTS_HALF_BODY: 8
+#      PROB_HALF_BODY: -1
     BATCH_SIZE: 32
     LR: 0.001
   VAL:

@@ -233,14 +233,14 @@ class SimpleTransform(object):
             r = 0
 
         joints = gt_joints
-        if random.random() > 0.5 and self._train:
-            # src, fliped = random_flip_image(src, px=0.5, py=0)
-            # if fliped[0]:
-            assert src.shape[2] == 3
-            src = src[:, ::-1, :]
-
-            joints = flip_joints_3d(joints, imgwidth, self._joint_pairs)
-            center[0] = imgwidth - center[0] - 1
+        # if random.random() > 0.5 and self._train:
+        #     # src, fliped = random_flip_image(src, px=0.5, py=0)
+        #     # if fliped[0]:
+        #     assert src.shape[2] == 3
+        #     src = src[:, ::-1, :]
+        #
+        #     joints = flip_joints_3d(joints, imgwidth, self._joint_pairs)
+        #     center[0] = imgwidth - center[0] - 1
 
         inp_h, inp_w = input_size
         trans = get_affine_transform(center, scale, r, [inp_w, inp_h])

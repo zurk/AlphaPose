@@ -101,7 +101,7 @@ def train(opt, train_loader, m, criterion, optimizer, writer, scaler):
 
         # Debug
         if opt.debug and not i % 100:
-            debug_image_index = 1525
+            debug_image_index = 2526
             debug_data = train_dataset[debug_image_index]
             (inps, labels, label_masks, joint_radius_gt, _, bboxes) = debug_data
             inps = inps[None, :]
