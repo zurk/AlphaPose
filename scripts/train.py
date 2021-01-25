@@ -257,16 +257,14 @@ def main():
     lr_scheduler = torch.optim.lr_scheduler.MultiStepLR(
         optimizer, milestones=cfg.TRAIN.LR_STEP, gamma=cfg.TRAIN.LR_FACTOR)
 
-    tensorboard_path = Path(f'.tensorboard/{opt.exp_id}-{cfg.FILE_NAME}')
-    experiment_path = Path(f'exp/{opt.exp_id}-{cfg.FILE_NAME}')
     if opt.clean:
-        if tensorboard_path.exists():
-            shutil.rmtree(tensorboard_path)
-        if experiment_path.exists():
-            shutil.rmtree(experiment_path)
-    tensorboard_path.mkdir(exist_ok=True, parents=True)
-    experiment_path.mkdir(exist_ok=True, parents=True)
-    writer = SummaryWriter(str(tensorboard_path))
+        if opt.tensorboard_path.exists():
+            shutil.rmtree(opt.tensorboard_path)
+        if opt.experiment_path.exists():
+            shutil.rmtree(opt.experiment_path)
+    opt.tensorboard_path.mkdir(exist_ok=True, parents=True)
+    opt.experiment_path.mkdir(exist_ok=True, parents=True)
+    writer = SummaryWriter(str(opt.tensorboard_path))
 
     train_dataset = builder.build_dataset(cfg.DATASET.TRAIN, preset_cfg=cfg.DATA_PRESET, train=True)
     train_loader = torch.utils.data.DataLoader(
@@ -293,7 +291,7 @@ def main():
 
         if (i + 1) % opt.snapshot == 0:
             # Save checkpoint
-            torch.save(m.module.state_dict(), str(experiment_path / f'model_{opt.epoch}.pth'))
+            torch.save(m.module.state_dict(), str(opt.experiment_path / f'model_{opt.epoch}.pth'))
             # Prediction Test
             with torch.no_grad():
                 metrics_on_true_box = validate_gt(m.module, opt, cfg, heatmap_to_coord)
@@ -312,7 +310,7 @@ def main():
 
         # Time to add DPG
         if i == cfg.TRAIN.DPG_MILESTONE:
-            torch.save(m.module.state_dict(), str(experiment_path / "final.pth"))
+            torch.save(m.module.state_dict(), str(opt.experiment_path / "final.pth"))
             # Adjust learning rate
             for param_group in optimizer.param_groups:
                 param_group['lr'] = cfg.TRAIN.LR
@@ -322,7 +320,7 @@ def main():
             train_loader = torch.utils.data.DataLoader(
                 train_dataset, batch_size=cfg.TRAIN.BATCH_SIZE * num_gpu, shuffle=True, num_workers=opt.nThreads)
 
-    torch.save(m.module.state_dict(), str(experiment_path /'final_DPG.pth'))
+    torch.save(m.module.state_dict(), str(opt.experiment_path /'final_DPG.pth'))
 
 
 def preset_model(cfg):

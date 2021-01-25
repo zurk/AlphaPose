@@ -7,6 +7,7 @@ import torch
 import torch.nn.functional as F
 import numpy as np
 
+from alphapose.opt import opt
 from alphapose.utils.transforms import get_max_pred
 
 
@@ -42,6 +43,8 @@ def debug_writing(writer, joint_map, joint_radius, joint_map_gt, joint_radius_gt
 
     writer.add_image('Data/input_map', input_image, iterations)
     writer.add_image('Data/output_map', output_image, iterations)
+    save_image(f"input_map_{iterations:06}", (255 * input_image.numpy().transpose([1, 2, 0])).astype(np.uint8).copy())
+    save_image(f"output_map_{iterations:06}", (255 * output_image.numpy().transpose([1, 2, 0])).astype(np.uint8).copy())
 
     coords = []
     for map in input_map:
@@ -60,7 +63,9 @@ def debug_writing(writer, joint_map, joint_radius, joint_map_gt, joint_radius_gt
         center = 4 * coord[1], 4 * coord[0]
         keypoints_image = cv2.circle(keypoints_image, center, int(radius * image.shape[2]), (255, 0, 0), -1)
 
-    writer.add_image('Data/input_keypoints', keypoints_image.astype(np.float32) / 255, iterations, dataformats="HWC")
+    input_keypoints = keypoints_image.astype(np.float32) / 255
+    writer.add_image('Data/input_keypoints', input_keypoints, iterations, dataformats="HWC")
+    save_image(f"input_keypoints_{iterations:06}", keypoints_image)
 
     coords = []
     for map in output_map:
@@ -79,4 +84,12 @@ def debug_writing(writer, joint_map, joint_radius, joint_map_gt, joint_radius_gt
         center = 4 * coord[1], 4 * coord[0]
         keypoints_image = cv2.circle(keypoints_image, center, int(radius * image.shape[2]), (255, 0, 0), -1)
 
-    writer.add_image('Data/output_keypoints', keypoints_image.astype(np.float32) / 255, iterations, dataformats="HWC")
+    output_keypoints = keypoints_image.astype(np.float32) / 255
+    writer.add_image('Data/output_keypoints', output_keypoints, iterations, dataformats="HWC")
+    save_image(f"output_keypoints_{iterations:06}", keypoints_image)
+
+
+def save_image(name, img):
+    img_path = opt.experiment_path / f"debug_img/{name}.png"
+    img_path.parent.mkdir(exist_ok=True, parents=True)
+    cv2.imwrite(str(img_path), img[:, :, ::-1])

@@ -5,6 +5,7 @@
 import argparse
 import logging
 import os
+from pathlib import Path
 from types import MethodType
 
 import torch
@@ -65,6 +66,8 @@ opt.world_size = cfg.TRAIN.WORLD_SIZE
 opt.work_dir = './exp/{}-{}/'.format(opt.exp_id, cfg_file_name)
 opt.gpus = [i for i in range(torch.cuda.device_count())]
 opt.device = torch.device("cuda:" + str(opt.gpus[0]) if len(opt.gpus) > 0 else "cpu")
+opt.tensorboard_path = Path(f'.tensorboard/{opt.exp_id}-{cfg.FILE_NAME}')
+opt.experiment_path = Path(f'exp/{opt.exp_id}-{cfg.FILE_NAME}')
 
 if not os.path.exists("./exp/{}-{}".format(opt.exp_id, cfg_file_name)):
     os.makedirs("./exp/{}-{}".format(opt.exp_id, cfg_file_name))
