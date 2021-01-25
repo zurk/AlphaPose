@@ -65,7 +65,7 @@ def train(opt, train_loader, m, criterion, optimizer, writer, scaler):
                 loss = joint_loss
                 if opt.fit_radius:
                     radius_masks = label_masks[:, :, 0, 0] * (joint_radius_gt != -1)
-                    coef = 1
+                    coef = 0.001
                     radius_loss = coef * 0.5 * criterion(joint_radius_gt.mul(radius_masks),
                                                          joints_radius.mul(radius_masks))
                     loss += radius_loss

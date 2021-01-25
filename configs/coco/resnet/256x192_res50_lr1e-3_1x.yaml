@@ -11,8 +11,8 @@ DATASET:
       SCALE_FACTOR: 0.3
       NUM_JOINTS_HALF_BODY: 8
       PROB_HALF_BODY: -1
-    BATCH_SIZE: 64
-    LR: 0.002
+    BATCH_SIZE: 32
+    LR: 0.001
   VAL:
     TYPE: 'Mscoco'
     ROOT: './data/coco/'
