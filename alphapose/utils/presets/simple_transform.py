@@ -258,7 +258,7 @@ class SimpleTransform(object):
             target, target_weight = self._integral_target_generator(joints, self.num_joints, inp_h, inp_w, source)
 
         bbox = _center_scale_to_box(center, scale)
-        distance_coef = cv2.norm(affine_transform([0, 0], trans), affine_transform([0, 1], trans))
+        distance_coef = np.linalg.norm(affine_transform([0, 0], trans) - affine_transform([0, 1], trans))
         joint_radius = label['radius']
         joint_radius[joint_radius != -1] *= distance_coef / inp_w
 
