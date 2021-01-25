@@ -32,14 +32,13 @@ def debug_writing(writer, joint_map, joint_radius, joint_map_gt, joint_radius_gt
     image = image.detach()
 
     input_image = 0.5 * image.clone()
-    input_map4 = F.interpolate(input_map, scale_factor=4, mode='bilinear')
+    input_map4 = F.interpolate(input_map, scale_factor=4, mode='bilinear', align_corners=False)
     input_image[0] += 0.5 * torch.sum(input_map4, dim=0)[0]
     input_image.clamp_(0, 1)
 
     output_image = 0.5 * image.clone()
     output_map = F.interpolate(output_map.type(torch.float32), scale_factor=4, mode='bilinear')
-    output_image[0] += 0.5 * torch.sum(output_map, dim=0)[0]
-    output_image.clamp_(0, 1)
+    output_image[0] += (0.25 * torch.sum(output_map, dim=0)[0]).clamp_(0, 0.5)
 
     writer.add_image('Data/input_map', input_image, iterations)
     writer.add_image('Data/output_map', output_image, iterations)
@@ -76,17 +75,20 @@ def debug_writing(writer, joint_map, joint_radius, joint_map_gt, joint_radius_gt
         coords.append(c)
 
     keypoints_image = (255 * image.numpy().transpose([1, 2, 0])).astype(np.uint8).copy()
+    keypoints_image_2 = (255 * image.numpy().transpose([1, 2, 0])).astype(np.uint8).copy()
     for coord, radius in zip(coords, joint_radius[batch_index]):
         if coord is None:
             continue
         if radius < 0:
             radius = 0
-        center = 4 * coord[1], 4 * coord[0]
+        center = coord[1], coord[0]
         keypoints_image = cv2.circle(keypoints_image, center, int(radius * image.shape[2]), (255, 0, 0), -1)
+        keypoints_image_2 = cv2.circle(keypoints_image_2, center, 3, (255, 0, 0), -1)
 
     output_keypoints = keypoints_image.astype(np.float32) / 255
     writer.add_image('Data/output_keypoints', output_keypoints, iterations, dataformats="HWC")
     save_image(f"output_keypoints_{iterations:06}", keypoints_image)
+    save_image(f"output_keypoints_no_radius_{iterations:06}", keypoints_image_2)
 
 
 def save_image(name, img):

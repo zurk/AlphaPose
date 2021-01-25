@@ -61,12 +61,12 @@ def train(opt, train_loader, m, criterion, optimizer, writer, scaler):
             joints_radius = full_output['joints_radius']
 
             if cfg.LOSS.get('TYPE') == 'MSELoss':
-                joint_loss = 0.5 * criterion(joint_map.mul(label_masks), labels.mul(label_masks))
+                coef = 1000
+                joint_loss = 0.5 * coef * criterion(joint_map.mul(label_masks), labels.mul(label_masks))
                 loss = joint_loss
                 if opt.fit_radius:
                     radius_masks = label_masks[:, :, 0, 0] * (joint_radius_gt != -1)
-                    coef = 0.001
-                    radius_loss = coef * 0.5 * criterion(joint_radius_gt.mul(radius_masks),
+                    radius_loss = 0.5 * criterion(joint_radius_gt.mul(radius_masks),
                                                          joints_radius.mul(radius_masks))
                     loss += radius_loss
                     radius_loss_item = radius_loss.item()
@@ -268,7 +268,7 @@ def main():
 
     train_dataset = builder.build_dataset(cfg.DATASET.TRAIN, preset_cfg=cfg.DATA_PRESET, train=True)
     train_loader = torch.utils.data.DataLoader(
-        train_dataset, batch_size=cfg.TRAIN.BATCH_SIZE * max(1, num_gpu), shuffle=False, num_workers=opt.nThreads)
+        train_dataset, batch_size=cfg.TRAIN.BATCH_SIZE * max(1, num_gpu), shuffle=True, num_workers=opt.nThreads)
 
     heatmap_to_coord = get_func_heatmap_to_coord(cfg)
 
@@ -318,7 +318,7 @@ def main():
             # Reset dataset
             train_dataset = builder.build_dataset(cfg.DATASET.TRAIN, preset_cfg=cfg.DATA_PRESET, train=True, dpg=True)
             train_loader = torch.utils.data.DataLoader(
-                train_dataset, batch_size=cfg.TRAIN.BATCH_SIZE * num_gpu, shuffle=True, num_workers=opt.nThreads)
+                train_dataset, batch_size=cfg.TRAIN.BATCH_SIZE * max(1, num_gpu), shuffle=True, num_workers=opt.nThreads)
 
     torch.save(m.module.state_dict(), str(opt.experiment_path /'final_DPG.pth'))
 
