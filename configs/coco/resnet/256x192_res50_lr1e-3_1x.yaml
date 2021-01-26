@@ -36,7 +36,7 @@ DATA_PRESET:
   - 48
 MODEL:
   TYPE: 'FastPose'
-  PRETRAINED: ''
+  PRETRAINED: './pretrained_models/fast_res50_256x192.pth'
   TRY_LOAD: ''
   NUM_DECONV_FILTERS:
   - 256
@@ -45,6 +45,7 @@ MODEL:
   NUM_LAYERS: 50
 LOSS:
   TYPE: 'MSELoss'
+  reduction: 'sum'
 DETECTOR:
   NAME: 'yolo'
   CONFIG: 'detector/yolo/cfg/yolov3-spp.cfg'
@@ -57,7 +58,7 @@ TRAIN:
   BEGIN_EPOCH: 0
   END_EPOCH: 200
   OPTIMIZER: 'adam'
-  LR: 0.001
+  LR: 0.00001
   LR_FACTOR: 0.1
   LR_STEP:
   - 90

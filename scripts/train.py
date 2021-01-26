@@ -61,13 +61,16 @@ def train(opt, train_loader, m, criterion, optimizer, writer, scaler):
             joints_radius = full_output['joints_radius']
 
             if cfg.LOSS.get('TYPE') == 'MSELoss':
+                assert criterion.reduction == "sum"
                 coef = 1000
                 joint_loss = 0.5 * coef * criterion(joint_map.mul(label_masks), labels.mul(label_masks))
+                joint_loss /= label_masks.sum() * joint_map.shape[2] * joint_map.shape[3]
                 loss = joint_loss
                 if opt.fit_radius:
                     radius_masks = label_masks[:, :, 0, 0] * (joint_radius_gt != -1)
                     radius_loss = 0.5 * criterion(joint_radius_gt.mul(radius_masks),
-                                                         joints_radius.mul(radius_masks))
+                                                  joints_radius.mul(radius_masks))
+                    joint_loss /= radius_masks.sum()
                     loss += radius_loss
                     radius_loss_item = radius_loss.item()
                     acc_radius = ((joint_radius_gt.mul(radius_masks) - joints_radius.mul(radius_masks)) < 1).sum() / (
@@ -328,7 +331,7 @@ def preset_model(cfg):
 
     if cfg.MODEL.PRETRAINED:
         logger.info(f'Loading model from {cfg.MODEL.PRETRAINED}...')
-        model.load_state_dict(torch.load(cfg.MODEL.PRETRAINED))
+        model.load_state_dict(torch.load(cfg.MODEL.PRETRAINED), strict=False)
     elif cfg.MODEL.TRY_LOAD:
         logger.info(f'Loading model from {cfg.MODEL.TRY_LOAD}...')
         pretrained_state = torch.load(cfg.MODEL.TRY_LOAD)
