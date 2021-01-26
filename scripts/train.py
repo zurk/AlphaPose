@@ -57,8 +57,8 @@ def train(opt, train_loader, m, criterion, optimizer, writer, scaler):
             joint_radius_gt = joint_radius_gt.cuda()
         with autocast():
             full_output = m(inps)
-            joint_map = full_output['joints_map']
-            joints_radius = full_output['joints_radius']
+            joint_map = full_output.joints_map
+            joints_radius = full_output.joints_radius
 
             if cfg.LOSS.get('TYPE') == 'MSELoss':
                 assert criterion.reduction == "sum"
@@ -109,8 +109,8 @@ def train(opt, train_loader, m, criterion, optimizer, writer, scaler):
             (inps, labels, label_masks, joint_radius_gt, _, bboxes) = debug_data
             inps = inps[None, :]
             full_output = m(inps)
-            joint_map = full_output['joints_map']
-            joints_radius = full_output['joints_radius']
+            joint_map = full_output.joints_map
+            joints_radius = full_output.joints_radius
 
             debug_writing(
                 writer, joint_map, joints_radius, labels[None, :], joint_radius_gt[None, :], inps, opt.trainIters)
@@ -144,7 +144,7 @@ def validate(m, opt, heatmap_to_coord, batch_size=64):
             else:
                 inps = inps.cuda()
         full_output = m(inps)
-        joints_map = full_output['joints_map']
+        joints_map = full_output.joints_map
 
         pred = joints_map
         assert pred.dim() == 4
@@ -194,8 +194,8 @@ def validate_gt(m, opt, cfg, heatmap_to_coord, batch_size=64):
             else:
                 inps = inps.cuda()
         full_output = m(inps)
-        joints_map = full_output['joints_map']
-        joints_radius = full_output['joints_radius']
+        joints_map = full_output.joints_map
+        joints_radius = full_output.joints_radius
 
         pred = joints_map
         assert pred.dim() == 4

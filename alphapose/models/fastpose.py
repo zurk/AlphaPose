@@ -2,6 +2,8 @@
 # Copyright (c) Shanghai Jiao Tong University. All rights reserved.
 # Written by Jiefeng Li (jeff.lee.sjtu@gmail.com)
 # -----------------------------------------------------
+from collections import namedtuple
+
 import torch
 import torch.nn as nn
 
@@ -9,6 +11,7 @@ from .builder import SPPE
 from .layers.DUC import DUC
 from .layers.SE_Resnet import SEResnet
 
+FastPoseOut = namedtuple("FastPoseOut", ("joints_map", "joints_radius"))
 
 @SPPE.register_module
 class FastPose(nn.Module):
@@ -65,10 +68,7 @@ class FastPose(nn.Module):
         out_radius = torch.reshape(out_radius, shape=(out_radius.shape[0], -1))
         out_radius = self.linear_radius(out_radius)
 
-        return {
-            "joints_map": out_joints,
-            "joints_radius": out_radius,
-        }
+        return FastPoseOut(out_joints, out_radius)
 
     def _initialize(self):
         for m in self.conv_out.modules():
