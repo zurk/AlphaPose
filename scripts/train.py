@@ -73,8 +73,8 @@ def train(opt, train_loader, m, criterion, optimizer, writer, scaler):
                     joint_loss /= radius_masks.sum()
                     loss += radius_loss
                     radius_loss_item = radius_loss.item()
-                    acc_radius = ((joint_radius_gt.mul(radius_masks) - joints_radius.mul(radius_masks)) < 1).sum() / (
-                            joint_radius_gt.shape[0] * joint_radius_gt.shape[0])
+                    acc_radius = ((joint_radius_gt.mul(radius_masks) - joints_radius.mul(radius_masks)) < 1).sum() / float(
+                            joint_radius_gt.shape[0] * joint_radius_gt.shape[1])
                 acc = calc_accuracy(joint_map.mul(label_masks), labels.mul(label_masks))
             else:
                 raise NotImplementedError()
