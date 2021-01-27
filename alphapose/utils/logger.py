@@ -42,6 +42,7 @@ def debug_writing(writer, joint_map, joint_radius, joint_map_gt, joint_radius_gt
 
     writer.add_image('Data/input_map', input_image, iterations)
     writer.add_image('Data/output_map', output_image, iterations)
+    save_image(f"input_image_{iterations:06}", (255 * image.numpy().transpose([1, 2, 0])).astype(np.uint8).copy())
     save_image(f"input_map_{iterations:06}", (255 * input_image.numpy().transpose([1, 2, 0])).astype(np.uint8).copy())
     save_image(f"output_map_{iterations:06}", (255 * output_image.numpy().transpose([1, 2, 0])).astype(np.uint8).copy())
 
